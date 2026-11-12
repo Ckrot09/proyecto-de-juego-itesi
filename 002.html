@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeopardy Trivia Game</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Styles for Classic TV Show Look & Animations -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Impact&family=Roboto:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: radial-gradient(circle at center, #0a1128 0%, #000411 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            user-select: none;
+        }
+
+        .jeopardy-title {
+            font-family: 'Impact', 'Oswald', sans-serif;
+            letter-spacing: 2px;
+            text-shadow: 3px 3px 0px #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+        }
+
+        .board-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .board-card {
+            font-family: 'Impact', 'Oswald', sans-serif;
+            background: linear-gradient(180deg, #061173 0%, #000a4d 100%);
+            box-shadow: inset 0 0 15px rgba(255, 255, 255, 0.15), 0 4px 10px rgba(0,0,0,0.5);
+            transition: transform 0.2s, box-shadow 0.2s, background 0.3s;
+        }
+
+        .board-card:hover:not(.disabled) {
+            transform: scale(1.03);
+            box-shadow: inset 0 0 25px rgba(255, 215, 0, 0.4), 0 6px 15px rgba(0,0,0,0.7);
+            border-color: #ffd700;
+        }
+
+        .board-card.disabled {
+            background: #020726;
+            color: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.05);
+            cursor: default;
+            box-shadow: none;
+        }
+
+        .text-gold {
+            color: #f6c43f;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        @keyframes zoomIn {
+            from { transform: scale(0.7); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .animate-zoom {
+            animation: zoomIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #000a4d;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #061173;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen overflow-x-hidden p-2 sm:p-4">
+
+    <!-- Header & Nav controls -->
+    <header class="flex flex-wrap justify-between items-center bg-blue-950/80 border-2 border-yellow-500/50 rounded-xl p-3 sm:p-4 mb-4 backdrop-blur-md gap-3">
+        <div class="flex items-center space-x-3">
+            <!-- Botón Menú Principal -->
+            <a href="index.html" class="bg-blue-900 hover:bg-blue-800 text-yellow-400 border border-yellow-500/50 font-bold py-2 px-3 rounded-lg shadow-md flex items-center gap-2 transition text-sm" title="Volver al Menú Principal">
+                <i class="fa-solid fa-house"></i> <span class="hidden sm:inline">Menú</span>
+            </a>
+            <i class="fa-solid fa-trophy text-yellow-400 text-3xl sm:text-4xl animate-bounce"></i>
+            <h1 class="text-2xl sm:text-4xl font-extrabold tracking-wider text-gold jeopardy-title">JEOPARDY!</h1>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+            <button onclick="openEditorModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-3 sm:px-4 rounded-lg shadow-lg flex items-center gap-2 transition text-sm border border-indigo-400">
+                <i class="fa-solid fa-pen-to-square"></i> Editar / Crear Preguntas
+            </button>
+            <button onclick="exportGameJSON()" class="bg-teal-600 hover:bg-teal-500 text-white font-bold py-2 px-3 sm:px-4 rounded-lg shadow-lg flex items-center gap-2 transition text-sm border border-teal-400" title="Guardar plantilla en archivo">
+                <i class="fa-solid fa-download"></i> Exportar JSON
+            </button>
+            <label class="bg-cyan-700 hover:bg-cyan-600 text-white font-bold py-2 px-3 sm:px-4 rounded-lg shadow-lg flex items-center gap-2 transition text-sm border border-cyan-400 cursor-pointer" title="Cargar plantilla JSON">
+                <i class="fa-solid fa-upload"></i> Importar JSON
+                <input type="file" accept=".json" onchange="importGameJSON(event)" class="hidden">
+            </label>
+            <button onclick="resetScores()" class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3 sm:px-4 rounded-lg shadow-lg flex items-center gap-2 transition text-sm border border-amber-400">
+                <i class="fa-solid fa-rotate-left"></i> Reiniciar Puntos
+            </button>
+            <button onclick="resetBoard()" class="bg-rose-700 hover:bg-rose-600 text-white font-bold py-2 px-3 sm:px-4 rounded-lg shadow-lg flex items-center gap-2 transition text-sm border border-rose-500">
+                <i class="fa-solid fa-arrows-rotate"></i> Reiniciar Juego
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Game Board Grid Container -->
+    <main class="flex-grow flex items-center justify-center mb-4">
+        <div class="w-full max-w-7xl">
+            <div id="game-board" class="board-grid"></div>
+        </div>
+    </main>
+
+    <!-- Player Scorebar Section (Bottom) -->
+    <footer class="bg-blue-950/90 border-2 border-yellow-500/40 rounded-xl p-3 sm:p-4 backdrop-blur-md">
+        <div class="flex justify-between items-center mb-3">
+            <h2 class="text-lg sm:text-xl font-bold text-yellow-400 flex items-center gap-2">
+                <i class="fa-solid fa-users"></i> JUGADORES Y PUNTAJES
+            </h2>
+            <button onclick="addPlayer()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 transition">
+                <i class="fa-solid fa-user-plus"></i> Agregar Jugador
+            </button>
+        </div>
+
+        <div id="players-container" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4"></div>
+    </footer>
+
+    <!-- QUESTION / CLUE MODAL OVERLAY -->
+    <div id="clue-modal" class="fixed inset-0 bg-black/90 z-50 hidden flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="bg-gradient-to-b from-blue-900 to-blue-950 border-4 border-yellow-400 rounded-2xl w-full max-w-3xl p-6 sm:p-8 shadow-2xl relative animate-zoom text-center flex flex-col justify-between min-h-[420px]">
+            <button onclick="closeClueModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl w-10 h-10 flex items-center justify-center rounded-full bg-blue-950/60 border border-yellow-500/30">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div>
+                <div class="flex justify-between items-center text-yellow-400 text-lg sm:text-2xl font-black uppercase tracking-widest border-b border-yellow-500/30 pb-3 mb-6">
+                    <span id="modal-category">CATEGORÍA</span>
+                    <span id="modal-points" class="bg-yellow-500 text-black px-4 py-1 rounded-full shadow-md">$100</span>
+                </div>
+                <div id="modal-media-container" class="my-4 hidden flex justify-center items-center max-h-[280px] overflow-hidden rounded-xl bg-black/50 p-2 border border-yellow-500/30 w-full">
+                    <img id="modal-img" src="" alt="Pista Visual" class="max-h-[240px] max-w-full object-contain rounded-lg hidden">
+                    <audio id="modal-audio" controls class="w-full max-w-md hidden my-2"></audio>
+                    <video id="modal-video" controls class="max-h-[240px] max-w-full rounded-lg hidden"></video>
+                    <iframe id="modal-iframe" src="" class="w-full h-[240px] rounded-lg hidden border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+                <div class="my-4 min-h-[80px] flex items-center justify-center">
+                    <p id="modal-question" class="text-xl sm:text-3xl font-bold text-white tracking-wide leading-relaxed px-2">Pista...</p>
+                </div>
+                <div id="modal-answer-box" class="hidden my-4 p-4 bg-yellow-500/10 border-2 border-dashed border-yellow-400 rounded-xl">
+                    <span class="text-xs text-yellow-300 uppercase tracking-widest block mb-1">Respuesta Correcta:</span>
+                    <p id="modal-answer" class="text-lg sm:text-2xl font-extrabold text-yellow-300">Respuesta...</p>
+                </div>
+            </div>
+            <div class="mt-6 flex flex-col gap-3 justify-center items-center pt-4 border-t border-yellow-500/20">
+                <button id="reveal-btn" onclick="revealAnswer()" class="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-black font-extrabold py-3 px-6 rounded-xl shadow-lg transition text-base flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-eye"></i> Revelar Respuesta
+                </button>
+                <div id="player-award-controls" class="w-full flex flex-wrap gap-2 justify-center mt-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUESTIONS & CATEGORIES EDITOR MODAL -->
+    <div id="editor-modal" class="fixed inset-0 bg-black/85 z-50 hidden flex items-center justify-center p-3 sm:p-6 backdrop-blur-sm">
+        <div class="bg-blue-950 border-2 border-indigo-500 rounded-2xl w-full max-w-5xl h-[88vh] flex flex-col p-4 sm:p-6 shadow-2xl">
+            <div class="flex justify-between items-center pb-3 border-b border-indigo-500/30 mb-2">
+                <h3 class="text-xl font-bold text-indigo-300 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders"></i> Editor de Categorías y Preguntas
+                </h3>
+                <button onclick="closeEditorModal()" class="text-gray-400 hover:text-white text-2xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="editor-form-container" class="flex-grow overflow-y-auto space-y-4 pr-2 my-2"></div>
+            <div class="pt-3 border-t border-indigo-500/30 flex flex-wrap gap-2 justify-between items-center mt-auto">
+                <div class="flex gap-2">
+                    <button onclick="clearAllData()" class="bg-rose-800 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm transition font-bold"><i class="fa-solid fa-trash-can"></i> Vaciar Todo</button>
+                    <button onclick="loadDefaultGameData()" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition font-bold"><i class="fa-solid fa-lightbulb"></i> Cargar Ejemplo</button>
+                </div>
+                <button onclick="saveEditorChanges()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2 rounded-lg shadow-lg transition"><i class="fa-solid fa-floppy-disk"></i> Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-message" class="fixed bottom-20 right-6 bg-yellow-500 text-black font-bold px-5 py-3 rounded-xl shadow-2xl transition-all transform translate-y-20 opacity-0 z-50 flex items-center gap-2">
+        <i class="fa-solid fa-circle-info text-xl"></i>
+        <span id="toast-text">Notificación</span>
+    </div>
+
+    <script>
+        const playSound = (type) => {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                if (type === 'select') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+                    osc.start(); osc.stop(ctx.currentTime + 0.15);
+                } else if (type === 'correct') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+                    osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+                    osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+                    osc.start(); osc.stop(ctx.currentTime + 0.35);
+                } else if (type === 'wrong') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(180, ctx.currentTime);
+                    osc.frequency.setValueAtTime(130, ctx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                    osc.start(); osc.stop(ctx.currentTime + 0.3);
+                }
+            } catch(e) {}
+        };
+
+        function getYouTubeEmbedUrl(url) {
+            if (!url) return null;
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[2].length === 11) ? `https://www.youtube.com/embed/${match[2]}?autoplay=1` : null;
+        }
+
+        const emptyGameData = {
+            categories: Array.from({ length: 5 }, (_, cIdx) => ({
+                name: `CATEGORÍA ${cIdx + 1}`,
+                clues: [100, 200, 300, 400, 500].map(pts => ({
+                    points: pts, question: "", answer: "", mediaType: "none", mediaUrl: "", played: false
+                }))
+            }))
+        };
+
+        const defaultGameData = {
+            categories: [
+                {
+                    name: "POZOLE & COMIDA",
+                    clues: [
+                        { points: 100, question: "¿De qué ingrediente principal está hecho el pozole tradicional?", answer: "Maíz cacahuazintle", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 200, question: "¿Qué platillo típico mexicano se muestra en esta imagen?", answer: "Pozole Rojo", mediaType: "image", mediaUrl: "https://images.unsplash.com/photo-1541518763669-27fef04b14e8?auto=format&fit=crop&w=600&q=80", played: false },
+                        { points: 300, question: "¿Qué carne se usaba originalmente en el pozole prehispánico?", answer: "Carne humana o xoloitzcuintle", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 400, question: "¿En qué estado de México se inventó el pozole rojo estilo Jalisco?", answer: "Jalisco", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 500, question: "Verbo o frase náhuatl de la que proviene la palabra Pozole (Pozolli):", answer: "Espumoso o hervido", mediaType: "none", mediaUrl: "", played: false }
+                    ]
+                },
+                {
+                    name: "Mario 64 & AUDIO",
+                    clues: [
+                        { points: 100, question: "¿Cuántas estrellas totales hay en Super Mario 64?", answer: "120 Estrellas", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 200, question: "Escucha el efecto de sonido: ¿A qué videojuego clásico pertenece?", answer: "Super Mario Bros / Mario 64", mediaType: "audio", mediaUrl: "https://cdn.freesound.org/previews/274/274178_5123851-lq.mp3", played: false },
+                        { points: 300, question: "¿Qué personaje aparece en el techo del castillo al conseguir todas las estrellas?", answer: "Yoshi", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 400, question: "¿Cuál es el nombre del primer nivel del juego?", answer: "Bob-omb Battlefield", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 500, question: "¿Cómo se llama la gorra que le permite volar a Mario?", answer: "Wing Cap (Gorra Alada)", mediaType: "none", mediaUrl: "", played: false }
+                    ]
+                },
+                {
+                    name: "VIDEO & CINE",
+                    clues: [
+                        { points: 100, question: "Observa el video corto. ¿Qué elemento astronómico se muestra?", answer: "La Tierra y el espacio", mediaType: "video", mediaUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4", played: false },
+                        { points: 200, question: "Famosa cantante estadounidense con apellido López:", answer: "Jennifer Lopez (J.Lo)", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 300, question: "Político mexicano conocido popularmente como AMLO:", answer: "Andrés Manuel López Obrador", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 400, question: "Poeta mexicano autor de 'La Suave Patria' (Ramón López...):", answer: "Velarde", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 500, question: "Nombre del navegante español que exploró Filipinas (Ruy López de...):", answer: "Villalobos", mediaType: "none", mediaUrl: "", played: false }
+                    ]
+                },
+                {
+                    name: "Falso Fan?",
+                    clues: [
+                        { points: 100, question: "¿De qué color es realmente la gorra principal de Mario?", answer: "Roja", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 200, question: "¿Cuál es el nombre verdadero del protagonista de la saga 'Zelda'?", answer: "Link (No Zelda)", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 300, question: "¿En qué año se lanzó la consola PlayStation 1 en Japón?", answer: "1994", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 400, question: "¿Cuál es la transformación de Goku con cabello azul?", answer: "Super Saiyan God Super Saiyan (SSJ Blue)", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 500, question: "¿Qué Pokémon es el número #001 en la Pokédex nacional?", answer: "Bulbasaur", mediaType: "none", mediaUrl: "", played: false }
+                    ]
+                },
+                {
+                    name: "Sayver",
+                    clues: [
+                        { points: 100, question: "Frase célebre de rivalidad amistosa entre streamers:", answer: "\"Chin** tu madre Sayver\"", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 200, question: "¿En qué plataforma se realizan streams de videojuegos en vivo principalmente?", answer: "Twitch / YouTube", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 300, question: "¿Qué objeto usas para controlar personajes en juegos de peleas?", answer: "Arcade Stick / Mando", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 400, question: "Término gamer para señalar a alguien con mucha suerte o habilidad:", answer: "Pro / Tryhard", mediaType: "none", mediaUrl: "", played: false },
+                        { points: 500, question: "Significado de la sigla 'GG WP' al terminar un juego:", answer: "Good Game, Well Played", mediaType: "none", mediaUrl: "", played: false }
+                    ]
+                }
+            ]
+        };
+
+        const defaultPlayers = [
+            { name: "Guty", score: 0 },
+            { name: "Carlos", score: 0 },
+            { name: "Yorch", score: 0 },
+            { name: "Alex", score: 0 }
+        ];
+
+        let gameData = JSON.parse(localStorage.getItem('jeopardy_game_data')) || emptyGameData;
+        let players = JSON.parse(localStorage.getItem('jeopardy_players')) || defaultPlayers;
+        let currentActiveClue = null;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            renderBoard();
+            renderPlayers();
+        });
+
+        function showToast(text) {
+            const toast = document.getElementById('toast-message');
+            document.getElementById('toast-text').innerText = text;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2500);
+        }
+
+        function renderBoard() {
+            const boardContainer = document.getElementById('game-board');
+            boardContainer.innerHTML = '';
+            gameData.categories.forEach((cat) => {
+                const catHeader = document.createElement('div');
+                catHeader.className = "bg-blue-900/90 border-2 border-yellow-500/60 rounded-lg p-2 sm:p-3 text-center font-black text-yellow-300 uppercase tracking-wider text-sm sm:text-base md:text-lg flex items-center justify-center min-h-[60px] sm:min-h-[70px] shadow-lg";
+                catHeader.innerText = cat.name;
+                boardContainer.appendChild(catHeader);
+            });
+            for (let row = 0; row < 5; row++) {
+                gameData.categories.forEach((cat, catIdx) => {
+                    const clue = cat.clues[row];
+                    const card = document.createElement('button');
+                    card.className = `board-card border-2 border-yellow-500/40 rounded-lg text-yellow-400 font-extrabold text-2xl sm:text-4xl py-6 sm:py-8 flex items-center justify-center ${clue.played ? 'disabled' : ''}`;
+                    if (clue.played) {
+                        card.innerText = '—';
+                        card.disabled = true;
+                    } else {
+                        card.innerText = `$${clue.points}`;
+                        card.onclick = () => openClueModal(catIdx, row);
+                    }
+                    boardContainer.appendChild(card);
+                });
+            }
+        }
+
+        function renderPlayers() {
+            const container = document.getElementById('players-container');
+            container.innerHTML = '';
+            players.forEach((player, idx) => {
+                const card = document.createElement('div');
+                card.className = "bg-blue-900/80 border border-yellow-500/30 rounded-xl p-2 sm:p-3 text-center shadow-md flex flex-col justify-between";
+                card.innerHTML = `
+                    <div class="flex items-center justify-between gap-1 mb-1">
+                        <input type="text" value="${escapeHtml(player.name)}" onchange="updatePlayerName(${idx}, this.value)" class="bg-transparent text-white font-bold text-sm sm:text-base w-full text-center focus:bg-blue-950/80 rounded border border-transparent focus:border-yellow-400 outline-none px-1">
+                        <button onclick="removePlayer(${idx})" class="text-xs text-rose-400 hover:text-rose-200 px-1"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                    <div class="text-xl sm:text-2xl font-black ${player.score < 0 ? 'text-red-400' : 'text-yellow-400'} my-1">$${player.score}</div>
+                    <div class="grid grid-cols-2 gap-1 mt-1">
+                        <button onclick="adjustScore(${idx}, 100)" class="bg-emerald-700/80 hover:bg-emerald-600 text-white font-bold py-1 rounded text-xs transition">+100</button>
+                        <button onclick="adjustScore(${idx}, -100)" class="bg-rose-800/80 hover:bg-rose-700 text-white font-bold py-1 rounded text-xs transition">-100</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            localStorage.setItem('jeopardy_players', JSON.stringify(players));
+        }
+
+        function adjustScore(playerIdx, amount) { players[playerIdx].score += amount; renderPlayers(); }
+        function updatePlayerName(playerIdx, newName) { players[playerIdx].name = newName || `Jugador ${playerIdx + 1}`; localStorage.setItem('jeopardy_players', JSON.stringify(players)); }
+        function addPlayer() {
+            if (players.length >= 8) { showToast("Máximo 8 jugadores permitidos"); return; }
+            players.push({ name: `Jugador ${players.length + 1}`, score: 0 });
+            renderPlayers();
+            if (currentActiveClue) renderModalPlayerActions(gameData.categories[currentActiveClue.catIdx].clues[currentActiveClue.clueIdx].points);
+        }
+        function removePlayer(idx) {
+            if (players.length <= 1) { showToast("Debe haber al menos 1 jugador"); return; }
+            players.splice(idx, 1);
+            renderPlayers();
+            if (currentActiveClue) renderModalPlayerActions(gameData.categories[currentActiveClue.catIdx].clues[currentActiveClue.clueIdx].points);
+        }
+        function resetScores() { players.forEach(p => p.score = 0); renderPlayers(); showToast("Puntajes reiniciados a 0"); }
+        function resetBoard() {
+            gameData.categories.forEach(cat => cat.clues.forEach(clue => clue.played = false));
+            saveGameData(); renderBoard(); showToast("Tablero de juego reseteado");
+        }
+
+        function openClueModal(catIdx, clueIdx) {
+            const clue = gameData.categories[catIdx].clues[clueIdx];
+            if (!clue.question || clue.question.trim() === "") { showToast("Esta casilla aún no tiene pregunta asignada."); return; }
+            playSound('select');
+            currentActiveClue = { catIdx, clueIdx };
+            document.getElementById('modal-category').innerText = gameData.categories[catIdx].name;
+            document.getElementById('modal-points').innerText = `$${clue.points}`;
+            document.getElementById('modal-question').innerText = clue.question;
+            document.getElementById('modal-answer').innerText = clue.answer || "(Sin respuesta)";
+            const mediaContainer = document.getElementById('modal-media-container');
+            const imgElem = document.getElementById('modal-img');
+            const audioElem = document.getElementById('modal-audio');
+            const videoElem = document.getElementById('modal-video');
+            const iframeElem = document.getElementById('modal-iframe');
+            imgElem.classList.add('hidden'); audioElem.classList.add('hidden'); videoElem.classList.add('hidden'); iframeElem.classList.add('hidden');
+            audioElem.pause(); videoElem.pause(); iframeElem.src = '';
+            if (clue.mediaType && clue.mediaType !== 'none' && clue.mediaUrl) {
+                mediaContainer.classList.remove('hidden');
+                if (clue.mediaType === 'image') { imgElem.src = clue.mediaUrl; imgElem.classList.remove('hidden'); }
+                else if (clue.mediaType === 'audio') { audioElem.src = clue.mediaUrl; audioElem.classList.remove('hidden'); }
+                else if (clue.mediaType === 'video') {
+                    const ytEmbed = getYouTubeEmbedUrl(clue.mediaUrl);
+                    if (ytEmbed) { iframeElem.src = ytEmbed; iframeElem.classList.remove('hidden'); }
+                    else { videoElem.src = clue.mediaUrl; videoElem.classList.remove('hidden'); }
+                }
+            } else { mediaContainer.classList.add('hidden'); }
+            document.getElementById('modal-answer-box').classList.add('hidden');
+            document.getElementById('reveal-btn').classList.remove('hidden');
+            renderModalPlayerActions(clue.points);
+            document.getElementById('clue-modal').classList.remove('hidden');
+        }
+
+        function revealAnswer() { playSound('select'); document.getElementById('modal-answer-box').classList.remove('hidden'); document.getElementById('reveal-btn').classList.add('hidden'); }
+        function renderModalPlayerActions(points) {
+            const container = document.getElementById('player-award-controls');
+            container.innerHTML = '';
+            players.forEach((player, idx) => {
+                const group = document.createElement('div');
+                group.className = "flex items-center bg-blue-950 border border-yellow-500/40 rounded-lg p-1 gap-1 text-xs sm:text-sm";
+                group.innerHTML = `
+                    <span class="font-bold text-white px-2 truncate max-w-[90px]">${escapeHtml(player.name)}</span>
+                    <button onclick="awardPointsModal(${idx}, ${points})" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-1 rounded transition flex items-center gap-1"><i class="fa-solid fa-plus"></i> $${points}</button>
+                    <button onclick="awardPointsModal(${idx}, -${points})" class="bg-rose-700 hover:bg-rose-600 text-white font-bold px-2 py-1 rounded transition flex items-center gap-1"><i class="fa-solid fa-minus"></i> $${points}</button>
+                `;
+                container.appendChild(group);
+            });
+        }
+        function awardPointsModal(playerIdx, amount) {
+            if (amount > 0) playSound('correct'); else playSound('wrong');
+            adjustScore(playerIdx, amount);
+            if (currentActiveClue) {
+                gameData.categories[currentActiveClue.catIdx].clues[currentActiveClue.clueIdx].played = true;
+                saveGameData(); renderBoard();
+            }
+            closeClueModal();
+        }
+        function closeClueModal() {
+            document.getElementById('modal-audio').pause();
+            document.getElementById('modal-video').pause();
+            document.getElementById('clue-modal').classList.add('hidden');
+            currentActiveClue = null;
+        }
+
+        function openEditorModal() { renderEditorForm(); document.getElementById('editor-modal').classList.remove('hidden'); }
+        function closeEditorModal() { document.getElementById('editor-modal').classList.add('hidden'); }
+        function renderEditorForm() {
+            const container = document.getElementById('editor-form-container');
+            container.innerHTML = '';
+            gameData.categories.forEach((cat, cIdx) => {
+                const catBlock = document.createElement('div');
+                catBlock.className = "bg-blue-900/40 border border-indigo-500/40 p-4 rounded-xl space-y-3";
+                let cluesHTML = '';
+                cat.clues.forEach((clue, clIdx) => {
+                    const mType = clue.mediaType || 'none';
+                    cluesHTML += `
+                        <div class="bg-blue-950/60 p-3 rounded-lg border border-indigo-500/20 space-y-2">
+                            <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                                <span class="md:col-span-1 text-yellow-400 font-bold text-center">$${clue.points}</span>
+                                <input type="text" id="input-q-${cIdx}-${clIdx}" value="${escapeHtml(clue.question)}" placeholder="Pregunta / Pista" class="md:col-span-6 bg-blue-900/80 border border-indigo-500/30 text-white rounded p-1.5 text-sm outline-none focus:border-yellow-400">
+                                <input type="text" id="input-a-${cIdx}-${clIdx}" value="${escapeHtml(clue.answer)}" placeholder="Respuesta" class="md:col-span-5 bg-blue-900/80 border border-indigo-500/30 text-yellow-300 rounded p-1.5 text-sm outline-none focus:border-yellow-400">
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center pt-1 border-t border-indigo-500/10 text-xs">
+                                <span class="sm:col-span-2 text-indigo-300 font-semibold"><i class="fa-solid fa-photo-film"></i> Multimedia:</span>
+                                <select id="select-mtype-${cIdx}-${clIdx}" class="sm:col-span-3 bg-blue-900 text-white border border-indigo-500/30 rounded p-1">
+                                    <option value="none" ${mType === 'none' ? 'selected' : ''}>Ninguno</option>
+                                    <option value="image" ${mType === 'image' ? 'selected' : ''}>Imagen</option>
+                                    <option value="audio" ${mType === 'audio' ? 'selected' : ''}>Audio MP3</option>
+                                    <option value="video" ${mType === 'video' ? 'selected' : ''}>Video</option>
+                                </select>
+                                <input type="text" id="input-murl-${cIdx}-${clIdx}" value="${escapeHtml(clue.mediaUrl || '')}" placeholder="URL YouTube o MP4" class="sm:col-span-4 bg-blue-900/80 border border-indigo-500/30 text-indigo-200 rounded p-1 outline-none">
+                                <label class="sm:col-span-3 bg-indigo-700 hover:bg-indigo-600 text-white px-2 py-1 rounded text-center cursor-pointer transition truncate">
+                                    <i class="fa-solid fa-upload"></i> Subir Archivo
+                                    <input type="file" accept="image/*,audio/*" onchange="handleFileUpload(event, ${cIdx}, ${clIdx})" class="hidden">
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                });
+                catBlock.innerHTML = `
+                    <div class="flex items-center gap-3 border-b border-indigo-500/30 pb-2">
+                        <label class="text-sm font-bold text-indigo-300 uppercase">Categoría ${cIdx + 1}:</label>
+                        <input type="text" id="input-cat-${cIdx}" value="${escapeHtml(cat.name)}" class="bg-blue-900 border border-yellow-500/50 font-bold text-yellow-300 text-base rounded px-3 py-1 outline-none focus:border-yellow-400 flex-1">
+                    </div>
+                    <div class="space-y-2 mt-2">${cluesHTML}</div>
+                `;
+                container.appendChild(catBlock);
+            });
+        }
+        function saveEditorChanges() {
+            gameData.categories.forEach((cat, cIdx) => {
+                const catInput = document.getElementById(`input-cat-${cIdx}`);
+                if (catInput) cat.name = catInput.value || `CATEGORÍA ${cIdx + 1}`;
+                cat.clues.forEach((clue, clIdx) => {
+                    const qInput = document.getElementById(`input-q-${cIdx}-${clIdx}`);
+                    const aInput = document.getElementById(`input-a-${cIdx}-${clIdx}`);
+                    const mtypeSelect = document.getElementById(`select-mtype-${cIdx}-${clIdx}`);
+                    const murlInput = document.getElementById(`input-murl-${cIdx}-${clIdx}`);
+                    if (qInput) clue.question = qInput.value;
+                    if (aInput) clue.answer = aInput.value;
+                    if (mtypeSelect) clue.mediaType = mtypeSelect.value;
+                    if (murlInput) clue.mediaUrl = murlInput.value;
+                });
+            });
+            saveGameData(); renderBoard(); closeEditorModal(); showToast("¡Guardado con éxito!");
+        }
+        function handleFileUpload(event, cIdx, clIdx) {
+            const file = event.target.files[0];
+            if (!file) return;
+            if (file.type.startsWith('video/')) { showToast("Usa URL para videos."); return; }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById(`input-murl-${cIdx}-${clIdx}`).value = e.target.result;
+                const mtypeSelect = document.getElementById(`select-mtype-${cIdx}-${clIdx}`);
+                if (file.type.startsWith('image/')) mtypeSelect.value = 'image';
+                else if (file.type.startsWith('audio/')) mtypeSelect.value = 'audio';
+                showToast("Archivo cargado");
+            };
+            reader.readAsDataURL(file);
+        }
+        function clearAllData() { gameData = JSON.parse(JSON.stringify(emptyGameData)); saveGameData(); renderEditorForm(); renderBoard(); showToast("Vaciado"); }
+        function loadDefaultGameData() { gameData = JSON.parse(JSON.stringify(defaultGameData)); saveGameData(); renderEditorForm(); renderBoard(); showToast("Ejemplo cargado"); }
+        function exportGameJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(gameData, null, 2));
+            const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", "plantilla_jeopardy.json");
+            document.body.appendChild(dl); dl.click(); dl.remove(); showToast("Exportado");
+        }
+        function importGameJSON(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imp = JSON.parse(e.target.result);
+                    if (imp && imp.categories) { gameData = imp; saveGameData(); renderBoard(); showToast("Importado"); }
+                } catch(err) { showToast("Error al importar"); }
+            };
+            reader.readAsText(file);
+        }
+        function saveGameData() { localStorage.setItem('jeopardy_game_data', JSON.stringify(gameData)); }
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
